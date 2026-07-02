@@ -20,22 +20,43 @@ const startButton = {
     x: 500,
     y: 300,
     width: 200,
-    height: 60
+    height: 60,
+    text: "Start Game",
+    action: startGame
 };
 
 const elasticButton = {
     x: 300,
     y: 500,
     width: 200,
-    height: 60
+    height: 60,
+    text: "Elastic Mode",
+    action: startElasticGame
 };
 
 const voidButton = {
     x: 700,
     y: 500,
     width: 200,
-    height: 60
+    height: 60,
+    text: "Void Mode",
+    action: startVoidGame
 };
+
+const restartButton = {
+    x: 500,
+    y: 300,
+    width: 200,
+    height: 60,
+    text: "Restart Game",
+    action: restartGame
+};
+
+const selectionOptions = {
+    title: [startButton],
+    instructions: [elasticButton, voidButton],
+    gameOver: [restartButton]
+}
 
 //----------------------------------------------------------------------------------
 
@@ -82,6 +103,8 @@ const planet2 = {
     radius: 20
 };
 
+const bodies = [moon, planet1, planet2];
+
 //----------------------------------------------------------------------------------
 
 // Defining functions
@@ -89,12 +112,14 @@ const planet2 = {
 // Button functions
 function startGame() {
     gameState = "instructions";
+    selection = 0; // Reset selection to first option
 }
 
 function startElasticGame() {
 
     gameMode = "elastic";
     gameState = "playing";
+    selection = 0; // Reset selection to first option
 
 }
 
@@ -102,46 +127,63 @@ function startVoidGame() {
 
     gameMode = "void";
     gameState = "playing";
+    selection = 0; // Reset selection to first option
+
+}
+
+function gameOver() {
+    
+    gameState = "gameOver";
+    selection = 0; // Reset selection to first option
+
+}
+
+function restartGame() {
+
+    gameState = "title";
+    selection = 0; // Reset selection to first option
 
 }
 
 // Physics functions
-function gravityForce(body1, body2) {
-    const G = 0.1; // Gravitational constant (adjust as needed)
+function gravityAccn(body1, body2) {
+
+    const G = 0.1; // Gravity constant - adjust as needed!
+
     const dx = body2.x - body1.x;
     const dy = body2.y - body1.y;
-    const forcex = (G * body1.mass * body2.mass) / (dx*dx);
-    const forcey = (G * body1.mass * body2.mass) / (dy*dy);
+    const distance = Math.sqrt(dx*dx + dy*dy);
 
-    return { forcex, forcey };
+    if (distance < 1) {
+        return; // Avoid division by zero
+    }
 
-// TO DO:
-// Use actual distance, components don't work like this
-// this is WRONG!!!
+    const force = (G * body1.mass * body2.mass) / (distance * distance);
+    const forcex = force * (dx / distance);
+    const forcey = force * (dy / distance);
+
+    body1.ax += forcex / body1.mass;
+    body1.ay += forcey / body1.mass;
+
+    body2.ax -= forcex / body2.mass;
+    body2.ay -= forcey / body2.mass;
 
 }
 
 // Moving celestial bodies
+function applyGravity() {
+
+    gravityAccn(moon, planet1);
+    gravityAccn(moon, planet2);
+
+}
+
 function controlPlanet1() {
     // Control planet1 with WASD keys
 }
 
 function controlPlanet2() {
     // Control planet2 with arrow keys
-}
-
-function applyGravity() {
-    forcex1, forcey1 = gravityForce(moon, planet1);
-    forcex2, forcey2 = gravityForce(moon, planet2);
-    
-    // TODO:
-    //
-    // Reset every body's acceleration to zero.
-    //
-    // Then calculate every gravitational interaction.
-    //
-    // Finally update ax and ay.
-
 }
 
 function moveBodies() {
@@ -155,19 +197,26 @@ function checkCollisions() {
 
 // Simulation order:
 //
-// 1. Read player input
+// 1. Reset accelerations
 // 2. Calculate gravity
-// 3. Update velocities
-// 4. Update positions
-// 5. Resolve collisions
+// 3. Read player input
+// 4. Update velocities
+// 5. Update positions
+// 6. Resolve collisions
 
 function update() {
+
+    // reset accelerations from previous frame
+    for (let body of bodies) {
+        body.ax = 0;
+        body.ay = 0;
+    }
+
+    applyGravity();
 
     controlPlanet1();
 
     controlPlanet2();
-
-    applyGravity();
 
     moveBodies();
 
@@ -176,15 +225,30 @@ function update() {
 }  
 
 // Drawing functions
+function drawButton(button) {
+    if (selection === button.selectionID) {
+        ctx.fillStyle = "white";
+    } 
+    else {
+        ctx.fillStyle = "gray";
+    }
+    ctx.fillRect(button.x, button.y, button.width, button.height);
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.fillText(button.text, button.x, button.y);
+}
+
 function drawTitleScreen() {
     ctx.fillStyle = "white";
     ctx.font = "40px Arial";
     ctx.fillText("Celestial Pong", 450, 200);
-    // Draw start button
+    drawButton(startButton);
 }
 
 function drawInstructionsScreen() {
-    // Draw instructions screen
+    // Draw instructions
+    drawButton(elasticButton);
+    drawButton(voidButton);
 }
 
 function drawGame() {
@@ -198,11 +262,15 @@ function drawGame() {
 }
 
 function drawGameOver() {
-    // Draw game over screen
+    // Draw game over
+    drawButton(restartButton);
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     if (gameState === "title") {
         drawTitleScreen();
     }
@@ -231,13 +299,74 @@ function gameLoop() {
 
 //----------------------------------------------------------------------------------
 
-// Making buttons work
-
-//----------------------------------------------------------------------------------
-
 // Initial settings
 let gameState = "title";
 let gameMode = "";
+let selection = 0;
+
+//----------------------------------------------------------------------------------
+
+// Making buttons work
+document.addEventListener("keydown", function(event) {;
+
+    changeSelection(event);
+    selectOption(event);
+
+});
+
+function changeSelection(event) {
+
+    if (gameState === "playing") {
+        return; // Ignore selection changes during gameplay
+    }
+    else {
+       if (event.key === "w" || event.key === "ArrowUp") {
+            selection += 1
+            if (selection > selectionOptions[gameState].length - 1) {
+                selection = 0; // Wrap around to the first option
+            }
+        }
+        else if (event.key === "s" || event.key === "ArrowDown") {
+            selection -= 1
+            if (selection < 0) {
+                selection = selectionOptions[gameState].length - 1; // Wrap around to the last option
+            }
+        } 
+        else {
+            return; // Ignore other keys
+        }
+    }
+}
+
+function selectOption(event) {
+
+    if (event.key === "Enter") {
+        if (gameState === "title") {
+            if (selection === 0) {
+                startGame();
+            }
+        }
+        else if (gameState === "instructions") {
+            if (selection === 0) {
+                startElasticGame();
+            }
+            else if (selection === 1) {
+                startVoidGame();
+            }
+        }
+        else if (gameState === "gameOver") {
+            if (selection === 0) {
+                restartGame();
+            }
+        }
+        else {
+            return; // Ignore selection during gameplay
+        }
+    }
+    else {
+        return; // Ignore other keys
+    }
+}
 
 //----------------------------------------------------------------------------------
 
@@ -247,5 +376,13 @@ gameLoop()
 //----------------------------------------------------------------------------------
 
 // TO DO:
-// Fix gravity function!!
-// Fix applyGravity function!!
+//
+// finish work on menu buttons!!!
+//
+//
+// Implement moveBodies()
+// Implement keyboard controls
+// Implement collision detection
+// Draw planets
+// Draw menu buttons
+// Replace circles with sprites
